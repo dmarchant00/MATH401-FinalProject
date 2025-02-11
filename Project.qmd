@@ -1,0 +1,143 @@
+---
+title: "Capstone1_Project"
+author: "Andrew Marchant"
+format: html
+editor: visual
+---
+
+## Libraries
+
+```{r}
+library(readr)
+library(leaflet)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+```
+
+## Data
+
+```{r}
+transactions <- read_csv("credit_card_transactions.csv")
+```
+
+## Variable EDA
+
+```{r}
+# Function to plot histograms for numerical columns
+plot_histograms <- function(data) {
+  numeric_cols <- names(data)[sapply(data, is.numeric)]
+  for (col in numeric_cols) {
+    p <- ggplot(data, aes(x = .data[[col]])) +
+      geom_histogram(bins = 30, fill = "blue", alpha = 0.7) +
+      labs(title = paste("Histogram of", col), x = col, y = "Count") +
+      theme_minimal()
+    print(p)
+  }
+}
+
+# Function to plot bar plots for categorical columns
+plot_barplots <- function(data) {
+  categorical_cols <- names(data)[sapply(data, is.character)]
+  for (col in categorical_cols) {
+    p <- ggplot(data, aes(x = .data[[col]])) +
+      geom_bar(fill = "blue", alpha = 0.7) +
+      labs(title = paste("Bar Plot of", col), x = col, y = "Count") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    print(p)
+  }
+}
+
+# Generate the plots
+plot_histograms(transactions[, c(5,6,9,12,15,17,19:22)])
+plot_barplots(transactions[, c(5,6,9,12,15,17,19:22)])
+
+
+transaction_summary <- transactions %>%
+  group_by(category) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) 
+
+ggplot(transaction_summary, aes(x = reorder(category, count), y = count, fill = category)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Number of Transactions per Category", x = "Category", y = "Number of Transactions") +
+  theme_minimal() +
+  theme(legend.position = "none") +  # Remove legend since colors already represent categories
+  coord_flip()  # Flip for better readability if many categories
+
+gender_summary <- transactions %>%
+  group_by(gender) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+ggplot(gender_summary, aes(x = gender, y = count, fill = gender)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Total Number of Transactions by Gender", x = "Gender", y = "Number of Transactions") +
+  theme_minimal() +
+  theme(legend.position = "none") +  # Remove legend since colors already represent gender
+  geom_text(aes(label = count), vjust = -0.5, size = 5)  # Display count values on bars
+```
+
+## Fraud EDA
+
+```{r}
+fraud_summary <- transactions %>%
+  group_by(is_fraud) %>%
+  summarise(count = n()) %>%
+  mutate(fraud_status = ifelse(is_fraud == 1, "Fraud", "Non-Fraud")) %>%
+  arrange(desc(count))  # Sort for better visualization
+
+ggplot(fraud_summary, aes(x = fraud_status, y = count, fill = fraud_status)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Total Number of Fraudulent vs Non-Fraudulent Transactions",
+       x = "Transaction Type", y = "Number of Transactions") +
+  theme_minimal() +
+  theme(legend.position = "none") +  # Remove legend since colors already represent fraud status
+  geom_text(aes(label = count), vjust = -0.5, size = 5)  # Display count values on bars
+
+fraud <- transactions %>% filter(is_fraud == 1)
+
+transaction_summary_fraud <- fraud %>%
+  group_by(category) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) 
+
+ggplot(transaction_summary_fraud, aes(x = reorder(category, count), y = count, fill = category)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Number of Transactions per Fraud Category", x = "Category", y = "Number of Transactions") +
+  theme_minimal() +
+  theme(legend.position = "none") +  # Remove legend since colors already represent categories
+  coord_flip()  # Flip for better readability if many categories
+
+
+```
+
+## Visualize Geographically
+
+```{r}
+leaflet(transactions) %>%
+     addTiles() %>%
+     addCircleMarkers(
+         ~long, ~lat,
+         radius = 3,  # Small fixed size for performance
+         color = "blue",
+         stroke = FALSE,
+         fillOpacity = 0.7,
+         popup = ~paste("Amount: $", amt),
+         clusterOptions = markerClusterOptions()
+     ) %>%
+     setView(lng = -98.5795, lat = 39.8283, zoom = 4)
+
+leaflet(fraud) %>%
+     addTiles() %>%
+     addCircleMarkers(
+         ~long, ~lat,
+         radius = 3,  # Small fixed size for performance
+         color = "blue",
+         stroke = FALSE,
+         fillOpacity = 0.7,
+         popup = ~paste("Amount: $", amt),
+     ) %>%
+     setView(lng = -98.5795, lat = 39.8283, zoom = 4)
+```
